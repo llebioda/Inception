@@ -1,0 +1,135 @@
+name: Inception
+
+networks:
+  inception:
+    name: inception
+    driver: bridge
+
+volumes:
+  wordpress:
+    name: wordpress
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/llebioda/data/wordpress
+  maria-db:
+    name: maria-db
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/llebioda/data/maria-db
+  prometheus_data:
+    name: prometheus_data
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/llebioda/data/prometheus
+
+services:
+  nginx:
+    container_name: nginx
+    build: ./requirements/nginx
+    image: nginx
+    ports:
+      - 443:443
+    extra_hosts:
+      - "llebioda.42.fr:127.0.0.1"
+      - "www.llebioda.42.fr:127.0.0.1"
+    depends_on:
+      - wordpress
+    volumes:
+      - wordpress:/var/www/html
+    networks:
+      - inception
+    env_file:
+      - .env
+    restart: always
+
+  wordpress:
+    container_name: wordpress
+    build: ./requirements/wordpress
+    image: wordpress
+    depends_on:
+      - maria-db
+      - redis
+    volumes:
+      - wordpress:/var/www/html
+    networks:
+      - inception
+    env_file:
+      - .env
+    restart: always
+
+  maria-db:
+    container_name: maria-db
+    build: ./requirements/maria-db
+    image: maria-db
+    volumes:
+      - maria-db:/var/lib/mysql
+    networks:
+      - inception
+    env_file:
+      - .env
+    restart: always
+
+# bonus
+  adminer:
+    container_name: adminer
+    build: ./requirements/bonus/adminer
+    image: adminer
+    ports:
+      - 8080:8080
+    depends_on:
+      - maria-db
+    networks:
+      - inception
+    restart: always
+  redis:
+    container_name: redis
+    build: ./requirements/bonus/redis
+    image: redis
+    volumes:
+      - wordpress:/var/www/html
+    networks:
+      - inception
+    restart: always
+
+  static-site:
+    container_name: static-site
+    build: ./requirements/bonus/static-site
+    image: static-site
+    ports:
+      - 80:80
+    networks:
+      - inception
+    restart: always
+
+  prometheus:
+    container_name: prometheus
+    build: ./requirements/bonus/prometheus
+    image: prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - prometheus_data:/data
+    networks:
+      - inception
+    restart: always
+
+  ftp:
+    container_name: ftp
+    build: ./requirements/bonus/ftp
+    image: ftp
+    ports:
+      - 21:21
+      - 21000-21010:21000-21010
+    volumes:
+      - wordpress:/var/www/html
+    networks:
+      - inception
+    env_file:
+      - .env
+    restart: always
